@@ -106,12 +106,12 @@ namespace DBSelection
                         LastValue = item.Value;
                         if (CountNods == 0)
                         {
-                            await sw.WriteLineAsync($"{TimeFrom} {item.Value}");
-                            await sw.WriteLineAsync($"{item.Key} {item.Value}");
+                            await sw.WriteLineAsync($"{double.Parse(TimeFrom, formatter) - double.Parse(TimeFrom, formatter)} {item.Value}");
+                            await sw.WriteLineAsync($"{item.Key - double.Parse(TimeFrom, formatter)} {item.Value}");
                         }
                         else
                         {
-                            await sw.WriteLineAsync($"{item.Key} {item.Value}");
+                            await sw.WriteLineAsync($"{item.Key - double.Parse(TimeFrom, formatter)} {item.Value}");
                         }
                         CountNods++;
                     }
