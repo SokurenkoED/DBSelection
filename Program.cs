@@ -11,7 +11,10 @@ namespace DBSelection
 {
     class Program
     {
-
+        static string LineInterpol(string[] Values1, string[] Values2, string X) // Линейная интерполяция
+        {
+            return (((double.Parse(Values1[1]) - double.Parse(Values2[1])) / (double.Parse(Values1[0]) - double.Parse(Values2[0])) ) * (double.Parse(X) - double.Parse(Values1[0])) + double.Parse(Values1[1])                ).ToString();
+        }
         static string ConvertDataFormat(string OldFormat, IFormatProvider formatter)
         {
             string[] SplitStr = OldFormat.Trim().Split(new string[] { ":" }, StringSplitOptions.RemoveEmptyEntries);
@@ -20,6 +23,7 @@ namespace DBSelection
 
         static async Task Main(string[] args)
         {
+            //Console.WriteLine(LineInterpol(new string[] { "501", "32"}, new string[] { "460", "30" }, "480"));
 
             #region Настроечные данные
 
@@ -34,8 +38,6 @@ namespace DBSelection
 
             Console.WriteLine("Введите имя датчика.");
             string SensorName = Console.ReadLine();
-            //Console.WriteLine("Введите имя файла.");
-            //string FileName = Console.ReadLine();
             Console.WriteLine($"Введите время начала выборки (чч:мм:сс).");
             string TempTimeFrom = Console.ReadLine().Trim();
             string TimeFrom = ConvertDataFormat(TempTimeFrom, formatter);
@@ -46,8 +48,9 @@ namespace DBSelection
 
             #region Setup
 
-            Dictionary<double, string> FileData = new Dictionary<double, string>();
+            List <string[]> ListData = new List<string[]>();
             double Date;
+            string DateStr;
             string[] example;
             string[] DateArr;
             string[] DateDayArr;
@@ -80,14 +83,31 @@ namespace DBSelection
                                 DateArr = example[1].Trim().Replace(",", ".").Split(new string[] { ":" }, StringSplitOptions.RemoveEmptyEntries);
                                 DateDayArr = example[0].Trim().Split(new string[] { "." }, StringSplitOptions.RemoveEmptyEntries);
                                 Date = double.Parse(DateArr[0], formatter) * 3600 + double.Parse(DateArr[1], formatter) * 60 + double.Parse(DateArr[2], formatter) + (double.Parse(DateDayArr[0], formatter) - 6) * 24 * 3600;
-
+                                DateStr = Date.ToString();
                                 #endregion
 
-                                FileData.Add(Date, example[3]);
+                                ListData.Add(new string[] { DateStr, example[3] });
                             }
                         }
                     }
                 }
+            }
+
+            #endregion
+
+            #region Проверка на предмет существования датчика в БД
+
+            try
+            {
+                if (ListData.Count == 0)
+                {
+                    throw new Exception($"\nОшибка! Датчик {SensorName} не был найден!");
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                Environment.Exit(0);
             }
 
             #endregion
@@ -97,30 +117,40 @@ namespace DBSelection
             using (StreamWriter sw = new StreamWriter($"{SensorName}_{TempTimeFrom.Replace(":", "-")}.dat", false, System.Text.Encoding.Default))
             {
                 await sw.WriteLineAsync($"Time {SensorName}");
-                string LastValue = null;
+                string LastTime = null;
+                int i = 0;
                 int CountNods = 0;
-                foreach (var item in FileData)
+                foreach (var item in ListData)
                 {
-                    if (item.Key >= double.Parse(TimeFrom, formatter) && item.Key <= double.Parse(TimeTo, formatter))
+                    if (double.Parse(item[0], formatter) >= double.Parse(TimeFrom, formatter) && double.Parse(item[0], formatter) <= double.Parse(TimeTo, formatter))
                     {
-                        LastValue = item.Value;
+                        LastTime = item[0];
                         if (CountNods == 0)
                         {
-                            await sw.WriteLineAsync($"{double.Parse(TimeFrom, formatter) - double.Parse(TimeFrom, formatter)} {item.Value}");
-                            await sw.WriteLineAsync($"{item.Key - double.Parse(TimeFrom, formatter)} {item.Value}");
+                            if (double.Parse(item[0], formatter) != double.Parse(TimeFrom, formatter))
+                            {
+                                await sw.WriteLineAsync($"{double.Parse(TimeFrom, formatter) - double.Parse(TimeFrom, formatter)} {LineInterpol(ListData[i - 1], ListData[i + 1], TimeFrom)}");
+                            }
+
+                            await sw.WriteLineAsync($"{double.Parse(item[0], formatter) - double.Parse(TimeFrom, formatter)} {item[1]}");
                         }
                         else
                         {
-                            await sw.WriteLineAsync($"{item.Key - double.Parse(TimeFrom, formatter)} {item.Value}");
+                            await sw.WriteLineAsync($"{double.Parse(item[0], formatter) - double.Parse(TimeFrom, formatter)} {item[1]}");
                         }
                         CountNods++;
                     }
-                    else if (item.Key > double.Parse(TimeTo, formatter))
+                    else if (double.Parse(item[0], formatter) > double.Parse(TimeTo, formatter))
                     {
                         break; // Так как больше совпадений не будет
                     }
+                    i++;
                 }
-                await sw.WriteLineAsync($"{TimeTo} {LastValue}");
+                if (double.Parse(LastTime, formatter) != double.Parse(TimeTo, formatter))
+                {
+                    await sw.WriteLineAsync($"{double.Parse(TimeTo, formatter) - double.Parse(TimeFrom, formatter)} {LineInterpol(ListData[i - 1], ListData[i + 1], TimeTo)}");
+                }
+                
             }
 
             #endregion
