@@ -57,6 +57,7 @@ namespace DBSelection
             string RuteName = SensorName.Substring(2, 3);
             string RelatePath = "./06-09_07_2018";
             string[] filePaths = Directory.GetFiles(RelatePath);
+            List<string> ColdReactor = new List<string>();
 
             #endregion
 
@@ -89,6 +90,19 @@ namespace DBSelection
                                 ListData.Add(new string[] { DateStr, example[3] });
                             }
                         }
+                    }
+                    
+                }
+            }
+            using (StreamReader sr = new StreamReader($"{RelatePath}/срез_06_07_2018.txt", ANSI)) // Поиск по срезу для холодного реактора
+            {
+                string line;
+                while ((line = await sr.ReadLineAsync()) != null)
+                {
+                    if (line.StartsWith(SensorName))
+                    {
+                        ColdReactor.Add(line.Split(new string[] { "\t" }, StringSplitOptions.RemoveEmptyEntries)[2]);
+                        break;
                     }
                 }
             }
@@ -125,14 +139,23 @@ namespace DBSelection
                     if (double.Parse(item[0], formatter) >= double.Parse(TimeFrom, formatter) && double.Parse(item[0], formatter) <= double.Parse(TimeTo, formatter))
                     {
                         LastTime = item[0];
-                        if (CountNods == 0)
+
+                        if (CountNods == 0) // Логика для крайнего первого значения
                         {
-                            if (double.Parse(item[0], formatter) != double.Parse(TimeFrom, formatter))
+                            if (double.Parse(item[0], formatter) == double.Parse(TimeFrom, formatter)) // Если значение времени ОТ есть в массиве
+                            {
+                                await sw.WriteLineAsync($"{double.Parse(item[0], formatter) - double.Parse(TimeFrom, formatter)} {item[1]}");
+                            }
+                            else if (double.Parse(item[0], formatter) != double.Parse(TimeFrom, formatter) && item != ListData[0])
                             {
                                 await sw.WriteLineAsync($"{double.Parse(TimeFrom, formatter) - double.Parse(TimeFrom, formatter)} {LineInterpol(ListData[i - 1], ListData[i + 1], TimeFrom)}");
+                                await sw.WriteLineAsync($"{double.Parse(item[0], formatter) - double.Parse(TimeFrom, formatter)} {item[1]}");
                             }
-
-                            await sw.WriteLineAsync($"{double.Parse(item[0], formatter) - double.Parse(TimeFrom, formatter)} {item[1]}");
+                            else if (double.Parse(item[0], formatter) != double.Parse(TimeFrom, formatter) && item == ListData[0]) 
+                            {
+                                await sw.WriteLineAsync($"{double.Parse(TimeFrom, formatter) - double.Parse(TimeFrom, formatter)} {ColdReactor[0]}");
+                                await sw.WriteLineAsync($"{double.Parse(item[0], formatter) - double.Parse(TimeFrom, formatter)} {item[1]}");
+                            }
                         }
                         else
                         {
@@ -146,11 +169,10 @@ namespace DBSelection
                     }
                     i++;
                 }
-                if (double.Parse(LastTime, formatter) != double.Parse(TimeTo, formatter))
+                if (double.Parse(LastTime, formatter) != double.Parse(TimeTo, formatter) && LastTime != ListData[ListData.Count-1][0])
                 {
                     await sw.WriteLineAsync($"{double.Parse(TimeTo, formatter) - double.Parse(TimeFrom, formatter)} {LineInterpol(ListData[i - 1], ListData[i + 1], TimeTo)}");
                 }
-                
             }
 
             #endregion
